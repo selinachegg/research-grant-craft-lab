@@ -312,7 +312,7 @@ export const SIGNALS: Signal[] = [
   {
     id: 'outcomes_linked',
     label: 'Outcomes linked to call',
-    description: 'Draft explicitly links project outcomes to the call topic's expected outcomes',
+    description: "Draft explicitly links project outcomes to the call topic's expected outcomes",
     criterion: 'impact',
     weight: 0.20,
     requiredForThreshold: true,
