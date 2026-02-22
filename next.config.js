@@ -1,10 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // scheme_packs are loaded at runtime via fs — mark them as server-only assets
+  // Turbopack (default in Next.js 16) handles fs/path exclusion automatically.
+  // Empty config declared explicitly to silence the webpack/turbopack conflict warning.
+  turbopack: {},
+  // Kept for webpack builds (next build, CI)
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Don't attempt to import 'fs' on the client
       config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
     }
     return config;
