@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
@@ -9,6 +9,68 @@ import { loadDraft } from '@/lib/drafts/store';
 import { loadLlmConfig } from '@/lib/llm/types';
 import type { LlmConfig } from '@/lib/llm/types';
 import type { ReviewerReport } from '@/lib/reviewer/types';
+import { exportAsPdf } from '@/lib/export/pdf';
+import { exportAsLatex } from '@/lib/export/latex';
+
+// ---------------------------------------------------------------------------
+// Export proposal section (PDF + LaTeX)
+// ---------------------------------------------------------------------------
+
+function ExportSection({
+  draftContent,
+  draftTitle,
+}: {
+  draftContent: string;
+  draftTitle: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const item =
+    'w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5"
+      >
+        <ShareIcon className="w-3.5 h-3.5" />
+        Export proposal
+        <ChevronDownSmIcon className="w-3 h-3 ml-0.5" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 w-52 animate-fade-in">
+          <p className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            Export your proposal
+          </p>
+          <button
+            className={item}
+            onClick={() => { exportAsPdf(draftContent, draftTitle); setOpen(false); }}
+          >
+            <PdfIcon className="w-3.5 h-3.5 text-red-400" /> Print / Save as PDF
+          </button>
+          <button
+            className={item}
+            onClick={() => { exportAsLatex(draftContent, draftTitle); setOpen(false); }}
+          >
+            <TexIcon className="w-3.5 h-3.5 text-brand-500" /> Download LaTeX (.tex)
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Mode toggle
@@ -400,6 +462,7 @@ export default function ReviewPage() {
   const [hStatus, setHStatus] = useState<HeuristicStatus>('loading');
   const [report, setReport] = useState<ReviewerReport | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
+  const [draftContent, setDraftContent] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
   // Mode toggle
@@ -428,6 +491,7 @@ export default function ReviewPage() {
         return;
       }
       setDraftTitle(draft.title);
+      setDraftContent(draft.content);
       if (draft.content.trim().length < 50) {
         setErrorMsg('Draft is too short to score (minimum 50 characters). Add more content and try again.');
         setHStatus('error');
@@ -486,12 +550,17 @@ export default function ReviewPage() {
           {draftTitle && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{draftTitle}</p>}
         </div>
 
-        {hStatus === 'done' && report && reviewMode === 'heuristic' && (
-          <button type="button" onClick={handleDownload} className="btn-secondary shrink-0">
-            <DownloadIcon className="w-3.5 h-3.5" />
-            Download report
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {hStatus === 'done' && report && reviewMode === 'heuristic' && (
+            <button type="button" onClick={handleDownload} className="btn-secondary shrink-0 text-xs py-1.5 px-3">
+              <DownloadIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Download report</span>
+            </button>
+          )}
+          {draftContent && (
+            <ExportSection draftContent={draftContent} draftTitle={draftTitle} />
+          )}
+        </div>
       </div>
 
       {/* Fatal error (no draft / too short) */}
@@ -557,6 +626,18 @@ export default function ReviewPage() {
 // Icons
 // ---------------------------------------------------------------------------
 
+function ChevronDownSmIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>;
+}
+function ShareIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M13 4.5a2.5 2.5 0 1 1 .702 1.737L6.97 9.604a2.518 2.518 0 0 1 0 .792l6.733 3.367a2.5 2.5 0 1 1-.671 1.341l-6.733-3.367a2.5 2.5 0 1 1 0-3.474l6.733-3.366A2.52 2.52 0 0 1 13 4.5Z" /></svg>;
+}
+function PdfIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M4 4a2 2 0 0 1 2-2h4.586A2 2 0 0 1 12 2.586L15.414 6A2 2 0 0 1 16 7.414V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4Zm4 9a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2H8Zm-1-4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" clipRule="evenodd" /></svg>;
+}
+function TexIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h11A2.5 2.5 0 0 1 18 4.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 2 15.5v-11ZM6 7a1 1 0 0 0 0 2h2v4a1 1 0 1 0 2 0V9h2a1 1 0 1 0 0-2H6Z" /></svg>;
+}
 function ChevronLeftIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>;
 }

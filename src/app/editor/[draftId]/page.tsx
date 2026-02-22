@@ -8,6 +8,8 @@ import remarkGfm from 'remark-gfm';
 import { loadDraft, saveDraft } from '@/lib/drafts/store';
 import { loadWizardState } from '@/lib/wizard/store';
 import { loadLlmConfig, generateDraft } from '@/lib/llm';
+import { exportAsPdf } from '@/lib/export/pdf';
+import { exportAsLatex } from '@/lib/export/latex';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,6 +41,74 @@ function Tooltip({ content, children }: { content: string; children: React.React
         </span>
       )}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Export dropdown
+// ---------------------------------------------------------------------------
+
+function ExportDropdown({
+  onDownloadMd,
+  onExportPdf,
+  onExportLatex,
+}: {
+  onDownloadMd: () => void;
+  onExportPdf: () => void;
+  onExportLatex: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const item =
+    'w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <Tooltip content="Download draft as Markdown, print-ready PDF, or LaTeX source.">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="btn-secondary py-1 px-3 text-xs flex items-center gap-1"
+        >
+          <DownloadIcon className="w-3 h-3" />
+          <span className="hidden sm:inline">Export</span>
+          <ChevronDownIcon className="w-2.5 h-2.5 ml-0.5" />
+        </button>
+      </Tooltip>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 w-48 animate-fade-in">
+          <button
+            className={item}
+            onClick={() => { onDownloadMd(); setOpen(false); }}
+          >
+            <DocIcon className="w-3.5 h-3.5 text-slate-400" /> Download .md
+          </button>
+          <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+          <button
+            className={item}
+            onClick={() => { onExportPdf(); setOpen(false); }}
+          >
+            <PdfIcon className="w-3.5 h-3.5 text-red-400" /> Export as PDF
+          </button>
+          <button
+            className={item}
+            onClick={() => { onExportLatex(); setOpen(false); }}
+          >
+            <TexIcon className="w-3.5 h-3.5 text-brand-500" /> Download LaTeX (.tex)
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -240,17 +310,12 @@ export default function EditorPage() {
           </button>
         </Tooltip>
 
-        {/* Download */}
-        <Tooltip content="Download the current draft as a Markdown (.md) file.">
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="btn-secondary py-1 px-3 text-xs shrink-0"
-          >
-            <DownloadIcon className="w-3 h-3" />
-            <span className="hidden sm:inline">Download</span>
-          </button>
-        </Tooltip>
+        {/* Export dropdown */}
+        <ExportDropdown
+          onDownloadMd={handleDownload}
+          onExportPdf={() => exportAsPdf(content, title)}
+          onExportLatex={() => exportAsLatex(content, title)}
+        />
 
         {/* Review */}
         <Tooltip content="Run the automated reviewer — scores your draft across 22 structural signals aligned to the Horizon Europe rubric and gives you a ranked action plan.">
@@ -338,6 +403,18 @@ export default function EditorPage() {
 
 function ChevronLeftIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>;
+}
+function ChevronDownIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>;
+}
+function DocIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M4 4a2 2 0 0 1 2-2h4.586A2 2 0 0 1 12 2.586L15.414 6A2 2 0 0 1 16 7.414V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4Zm2 6a1 1 0 0 1 1-1h6a1 1 0 1 1 0 2H7a1 1 0 0 1-1-1Zm1 3a1 1 0 1 0 0 2h6a1 1 0 1 0 0-2H7Z" clipRule="evenodd" /></svg>;
+}
+function PdfIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M4 4a2 2 0 0 1 2-2h4.586A2 2 0 0 1 12 2.586L15.414 6A2 2 0 0 1 16 7.414V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4Zm4 9a1 1 0 1 0 0 2h4a1 1 0 1 0 0-2H8Zm-1-4a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H8a1 1 0 0 1-1-1Z" clipRule="evenodd" /></svg>;
+}
+function TexIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M2 4.5A2.5 2.5 0 0 1 4.5 2h11A2.5 2.5 0 0 1 18 4.5v11a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 2 15.5v-11ZM6 7a1 1 0 0 0 0 2h2v4a1 1 0 1 0 2 0V9h2a1 1 0 1 0 0-2H6Z" /></svg>;
 }
 function SpinnerIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>;
