@@ -19,8 +19,13 @@
     "validate-pack:single": "node scripts/validate-pack.js",
     "export-draft": "node scripts/export-draft.js"
   },
+  "overrides": {
+    "glob": "^11.0.0",
+    "minimatch": "^10.0.0",
+    "rimraf": "^6.0.0"
+  },
   "dependencies": {
-    "next": "14.2.10",
+    "next": "14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-markdown": "^9.0.1",
@@ -37,7 +42,7 @@
     "autoprefixer": "^10.4.19",
     "postcss": "^8.4.38",
     "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.10",
+    "eslint-config-next": "14.2.35",
     "jest": "^29.7.0",
     "@types/jest": "^29.5.12",
     "ts-jest": "^29.1.4",
