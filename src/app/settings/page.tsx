@@ -5,75 +5,15 @@ import Link from 'next/link';
 import { loadLlmConfig, saveLlmConfig } from '@/lib/llm/types';
 import type { LlmConfig } from '@/lib/llm/types';
 
-// ---------------------------------------------------------------------------
-// Provider presets
-// ---------------------------------------------------------------------------
-
 const PROVIDERS = [
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    endpoint: 'https://api.openai.com/v1',
-    model: 'gpt-4o',
-    keyPlaceholder: 'sk-...',
-    keyHint: 'Get your key at platform.openai.com/api-keys',
-    docs: 'https://platform.openai.com/api-keys',
-  },
-  {
-    id: 'openai-mini',
-    name: 'OpenAI (mini)',
-    endpoint: 'https://api.openai.com/v1',
-    model: 'gpt-4o-mini',
-    keyPlaceholder: 'sk-...',
-    keyHint: 'Same key as OpenAI — cheaper, faster model',
-    docs: 'https://platform.openai.com/api-keys',
-  },
-  {
-    id: 'ollama',
-    name: 'Ollama (local)',
-    endpoint: 'http://localhost:11434/v1',
-    model: 'llama3',
-    keyPlaceholder: 'ollama',
-    keyHint: 'Install Ollama and run: ollama pull llama3',
-    docs: 'https://ollama.com',
-  },
-  {
-    id: 'custom',
-    name: 'Custom',
-    endpoint: '',
-    model: '',
-    keyPlaceholder: 'your-api-key',
-    keyHint: 'Any OpenAI-compatible endpoint',
-    docs: null,
-  },
+  { id: 'openai',      name: 'OpenAI',        endpoint: 'https://api.openai.com/v1',  model: 'gpt-4o',      keyPlaceholder: 'sk-...', keyHint: 'Get your key at platform.openai.com/api-keys', docs: 'https://platform.openai.com/api-keys' },
+  { id: 'openai-mini', name: 'GPT-4o mini',   endpoint: 'https://api.openai.com/v1',  model: 'gpt-4o-mini', keyPlaceholder: 'sk-...', keyHint: 'Same key as OpenAI — cheaper, faster', docs: 'https://platform.openai.com/api-keys' },
+  { id: 'openrouter',  name: 'OpenRouter',     endpoint: 'https://openrouter.ai/api/v1', model: 'openai/gpt-4o-mini', keyPlaceholder: 'sk-or-...', keyHint: 'Get a key at openrouter.ai — access 100+ models', docs: 'https://openrouter.ai/keys' },
+  { id: 'ollama',      name: 'Ollama (local)', endpoint: 'http://localhost:11434/v1', model: 'llama3',      keyPlaceholder: 'ollama', keyHint: 'Install Ollama and run: ollama pull llama3', docs: 'https://ollama.com' },
+  { id: 'custom',      name: 'Custom',         endpoint: '', model: '', keyPlaceholder: 'your-api-key', keyHint: 'Any OpenAI-compatible endpoint', docs: null },
 ] as const;
 
 type ProviderId = (typeof PROVIDERS)[number]['id'];
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <label className="block text-sm font-medium text-slate-700 mb-1">{children}</label>;
-}
-
-function Hint({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs text-slate-400 mt-1">{children}</p>;
-}
-
-function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      {...props}
-      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-    />
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Settings page
-// ---------------------------------------------------------------------------
 
 export default function SettingsPage() {
   const [mode, setMode] = useState<'mock' | 'live'>('mock');
@@ -83,16 +23,13 @@ export default function SettingsPage() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
 
-  // Load saved config on mount
   useEffect(() => {
-    const saved = loadLlmConfig();
-    if (saved.endpoint && saved.apiKey) {
+    const c = loadLlmConfig();
+    if (c.endpoint && c.apiKey) {
       setMode('live');
-      setConfig(saved);
-      // Try to match provider
-      const match = PROVIDERS.find((p) => p.endpoint === saved.endpoint && p.model === saved.model);
-      if (match) setProviderId(match.id);
-      else setProviderId('custom');
+      setConfig(c);
+      const match = PROVIDERS.find((p) => p.endpoint === c.endpoint && p.model === c.model);
+      setProviderId(match ? match.id : 'custom');
     }
   }, []);
 
@@ -108,11 +45,7 @@ export default function SettingsPage() {
   }
 
   function handleSave() {
-    if (mode === 'mock') {
-      saveLlmConfig({ endpoint: '', apiKey: '', model: 'gpt-4o' });
-    } else {
-      saveLlmConfig(config);
-    }
+    saveLlmConfig(mode === 'mock' ? { endpoint: '', apiKey: '', model: 'gpt-4o' } : config);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
     setTestResult(null);
@@ -135,33 +68,21 @@ export default function SettingsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           wizardState: {
-            acronym: 'TEST',
-            fullTitle: 'Connection test',
-            abstract: 'Testing API connection.',
+            acronym: 'TEST', fullTitle: 'Connection test', abstract: 'Testing API connection.',
             objectives: [{ id: '1', text: 'Test connection' }],
-            currentTrl: '3',
-            targetTrl: '6',
-            stateOfArtGap: 'Testing.',
-            partners: [{ id: '1', name: 'Test', country: 'EU', type: 'University', role: 'Lead', expertise: 'Test' }],
-            durationMonths: 48,
-            totalBudgetEuros: '1000000',
-            keyMilestones: '',
+            currentTrl: '3', targetTrl: '6', stateOfArtGap: 'Testing.',
+            partners: [{ id: '1', name: 'Test', country: 'DE', type: 'University', role: 'Lead', expertise: 'Test' }],
+            durationMonths: 48, totalBudgetEuros: '1000000', keyMilestones: '',
             schemeId: 'horizon_europe_ria_ia',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            currentStep: 5,
+            createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), currentStep: 5,
           },
           config,
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setTestResult({ ok: false, message: data.error ?? `HTTP ${res.status}` });
-      } else if (data.isMock) {
-        setTestResult({ ok: false, message: 'Connection reached mock mode — check your endpoint and API key.' });
-      } else {
-        setTestResult({ ok: true, message: 'Connection successful! API is responding correctly.' });
-      }
+      if (!res.ok) setTestResult({ ok: false, message: data.error ?? `HTTP ${res.status}` });
+      else if (data.isMock) setTestResult({ ok: false, message: 'Reached mock mode — check your endpoint and API key.' });
+      else setTestResult({ ok: true, message: 'Connection successful! API is responding correctly.' });
     } catch (err) {
       setTestResult({ ok: false, message: err instanceof Error ? err.message : 'Unknown error' });
     } finally {
@@ -173,139 +94,119 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto">
-      <Link href="/" className="text-sm text-slate-500 hover:text-slate-800 transition-colors">
-        ← Home
+      {/* Back */}
+      <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-6 transition-colors">
+        <ChevronLeftIcon className="w-4 h-4" />
+        Home
       </Link>
 
-      <h1 className="text-2xl font-bold text-slate-900 mt-4 mb-1">AI generation settings</h1>
-      <p className="text-sm text-slate-500 mb-8">
-        Choose how drafts are generated. Settings are saved in your browser only — never sent to
-        this project's servers.
+      <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-1">AI generation settings</h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
+        Choose how drafts are generated. Settings are saved in your browser only.
       </p>
 
       {/* Mode selector */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        {/* Mock mode card */}
-        <button
-          type="button"
-          onClick={() => { setMode('mock'); setTestResult(null); }}
-          className={`text-left p-5 rounded-xl border-2 transition-colors ${
-            mode === 'mock'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-slate-200 bg-white hover:border-slate-300'
-          }`}
-        >
-          <p className="font-semibold text-slate-900 mb-1">🧪 Mock mode</p>
-          <p className="text-xs text-slate-500">
-            No API key needed. Generates a structured scaffold from your wizard answers.
-            Works offline. Recommended for first-time users.
-          </p>
-          {mode === 'mock' && (
-            <span className="inline-block mt-3 text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-              Active
-            </span>
-          )}
-        </button>
-
-        {/* Live AI card */}
-        <button
-          type="button"
-          onClick={() => { setMode('live'); setTestResult(null); }}
-          className={`text-left p-5 rounded-xl border-2 transition-colors ${
-            mode === 'live'
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-slate-200 bg-white hover:border-slate-300'
-          }`}
-        >
-          <p className="font-semibold text-slate-900 mb-1">✨ Live AI</p>
-          <p className="text-xs text-slate-500">
-            Connect your own API key (OpenAI, local Ollama, or any OpenAI-compatible
-            endpoint). Your draft text is sent to the configured provider.
-          </p>
-          {mode === 'live' && (
-            <span className="inline-block mt-3 text-xs font-medium text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-              Active
-            </span>
-          )}
-        </button>
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        {[
+          {
+            key: 'mock' as const,
+            icon: '🧪',
+            title: 'Template mode',
+            desc: 'No API key needed. Generates a structured scaffold from your wizard answers. Works offline. Best for first use.',
+          },
+          {
+            key: 'live' as const,
+            icon: '✨',
+            title: 'Live AI',
+            desc: 'Connect your own API key (OpenAI, OpenRouter, Ollama, or any OpenAI-compatible endpoint) for AI-written drafts.',
+          },
+        ].map((m) => (
+          <button
+            key={m.key}
+            type="button"
+            onClick={() => { setMode(m.key); setTestResult(null); }}
+            className={`text-left p-5 rounded-2xl border-2 transition-all duration-150 ${
+              mode === m.key
+                ? 'border-brand-500 bg-brand-50 dark:bg-brand-950'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-600'
+            }`}
+          >
+            <div className="text-2xl mb-2">{m.icon}</div>
+            <p className="font-semibold text-slate-900 dark:text-slate-100 text-sm mb-1">{m.title}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{m.desc}</p>
+            {mode === m.key && (
+              <span className="badge badge-brand mt-3">Active</span>
+            )}
+          </button>
+        ))}
       </div>
 
       {/* Live mode configuration */}
       {mode === 'live' && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 space-y-5 mb-6">
-          <h2 className="font-semibold text-slate-900">Provider configuration</h2>
+        <div className="card p-6 space-y-5 mb-6">
+          <h2 className="font-semibold text-slate-900 dark:text-slate-100">Provider configuration</h2>
 
           {/* Provider presets */}
           <div>
-            <Label>Provider</Label>
-            <div className="flex flex-wrap gap-2 mt-1">
+            <label className="field-label">Provider</label>
+            <div className="flex flex-wrap gap-2 mt-1.5">
               {PROVIDERS.map((p) => (
                 <button
                   key={p.id}
                   type="button"
                   onClick={() => selectProvider(p.id)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all duration-150 ${
                     providerId === p.id
-                      ? 'bg-slate-800 text-white border-slate-800'
-                      : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
                   {p.name}
                 </button>
               ))}
             </div>
-            {selectedProvider.docs && (
-              <Hint>
-                <a
-                  href={selectedProvider.docs}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline hover:text-slate-600"
-                >
-                  {selectedProvider.keyHint}
-                </a>
-              </Hint>
-            )}
-            {!selectedProvider.docs && <Hint>{selectedProvider.keyHint}</Hint>}
+            {selectedProvider.docs
+              ? <p className="field-hint"><a href={selectedProvider.docs} target="_blank" rel="noopener noreferrer" className="underline hover:text-slate-600 dark:hover:text-slate-300">{selectedProvider.keyHint}</a></p>
+              : <p className="field-hint">{selectedProvider.keyHint}</p>
+            }
           </div>
 
           {/* Endpoint */}
           <div>
-            <Label>API endpoint</Label>
-            <Input
+            <label className="field-label">API endpoint</label>
+            <input
               value={config.endpoint}
               onChange={(e) => setConfig((c) => ({ ...c, endpoint: e.target.value }))}
               placeholder="https://api.openai.com/v1"
+              className="field-input"
             />
-            <Hint>Must be an OpenAI-compatible endpoint (supports /chat/completions).</Hint>
+            <p className="field-hint">Must support <code className="font-mono text-xs">/chat/completions</code>.</p>
           </div>
 
           {/* API Key */}
           <div>
-            <Label>API key</Label>
-            <Input
+            <label className="field-label">API key</label>
+            <input
               type="password"
               value={config.apiKey}
               onChange={(e) => setConfig((c) => ({ ...c, apiKey: e.target.value }))}
               placeholder={selectedProvider.keyPlaceholder}
               autoComplete="off"
+              className="field-input"
             />
-            <Hint>
-              Stored in browser localStorage only. Never sent to this project's servers.
-            </Hint>
+            <p className="field-hint">Stored in browser localStorage only. Never sent to this project's servers.</p>
           </div>
 
           {/* Model */}
           <div>
-            <Label>Model</Label>
-            <Input
+            <label className="field-label">Model</label>
+            <input
               value={config.model}
               onChange={(e) => setConfig((c) => ({ ...c, model: e.target.value }))}
               placeholder="gpt-4o"
+              className="field-input"
             />
-            <Hint>
-              OpenAI: gpt-4o, gpt-4o-mini &nbsp;·&nbsp; Ollama: llama3, mistral, phi3
-            </Hint>
+            <p className="field-hint">OpenAI: gpt-4o, gpt-4o-mini · Ollama: llama3, mistral</p>
           </div>
 
           {/* Test connection */}
@@ -314,12 +215,14 @@ export default function SettingsPage() {
               type="button"
               onClick={handleTest}
               disabled={testing || !config.endpoint || !config.apiKey}
-              className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+              className="btn-secondary"
             >
-              {testing ? 'Testing…' : 'Test connection'}
+              {testing ? (
+                <><SpinnerIcon className="w-3.5 h-3.5 animate-spin" />Testing…</>
+              ) : 'Test connection'}
             </button>
             {testResult && (
-              <p className={`mt-2 text-sm ${testResult.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+              <p className={`mt-2.5 text-sm flex items-center gap-1.5 ${testResult.ok ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
                 {testResult.ok ? '✅' : '❌'} {testResult.message}
               </p>
             )}
@@ -327,41 +230,39 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Privacy note for live mode */}
+      {/* Privacy notice */}
       {mode === 'live' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 mb-6">
-          ⚠ When Live AI is active, your draft text and wizard answers are sent to the configured
-          API endpoint. Review the privacy policy of your chosen provider before entering sensitive
-          proposal content.{' '}
-          <Link href="/privacy" className="underline font-medium">
-            Privacy statement
-          </Link>
+        <div className="badge-amber rounded-xl px-4 py-3 text-xs mb-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+          ⚠ In Live AI mode, your draft text and wizard answers are sent to the configured API endpoint. Review the privacy policy of your chosen provider before entering sensitive content.{' '}
+          <Link href="/privacy" className="underline font-medium">Privacy statement</Link>
         </div>
       )}
 
-      {/* Save / clear */}
+      {/* Save / reset */}
       <div className="flex items-center gap-3">
         <button
           type="button"
           onClick={handleSave}
           disabled={mode === 'live' && (!config.endpoint || !config.apiKey)}
-          className="px-6 py-2 text-sm bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors shadow-sm"
+          className="btn-primary"
         >
           {saved ? '✓ Saved' : 'Save settings'}
         </button>
-        <button
-          type="button"
-          onClick={handleClear}
-          className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
-        >
-          Reset to mock mode
+        <button type="button" onClick={handleClear} className="btn-secondary">
+          Reset to template mode
         </button>
       </div>
 
-      <p className="text-xs text-slate-400 mt-4">
-        Settings are saved in your browser's localStorage and apply immediately to new draft
-        generation requests.
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-4">
+        Settings are saved in your browser's localStorage and apply immediately to new draft generation requests.
       </p>
     </div>
   );
+}
+
+function ChevronLeftIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd"/></svg>;
+}
+function SpinnerIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z"/></svg>;
 }

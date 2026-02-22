@@ -1,78 +1,48 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
+import { Navbar } from './Navbar';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'Research Grant Craft',
-  description:
-    'Open-source grant proposal wizard + reviewer report for researchers.',
+  description: 'Open-source grant proposal wizard + reviewer report for researchers.',
   metadataBase: new URL('https://github.com/selinachegg/research-grant-craft'),
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <body suppressHydrationWarning>
-        <header className="border-b border-slate-200 bg-white sticky top-0 z-40">
-          <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-            <a
-              href="/"
-              className="font-semibold text-slate-900 hover:text-blue-600 transition-colors"
-            >
-              Research Grant Craft
-            </a>
-            <nav className="flex items-center gap-6 text-sm text-slate-600">
-              <a href="/wizard" className="hover:text-slate-900 transition-colors">
-                New proposal
-              </a>
-              <a href="/settings" className="hover:text-slate-900 transition-colors">
-                AI settings
-              </a>
+        <Navbar />
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+          {children}
+        </main>
+        <footer className="border-t border-slate-200 dark:border-slate-800 mt-20 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 dark:text-slate-500">
+            <p>
+              <span className="font-medium text-slate-500 dark:text-slate-400">Research Grant Craft</span>
+              {' '}— open-source, local-first.{' '}
+              <a href="/privacy" className="underline hover:text-slate-600 dark:hover:text-slate-300">Privacy</a>
+              {' · '}MIT Licence
+            </p>
+            <p className="text-center">
+              This tool does not predict funding outcomes.{' '}
               <a
-                href="https://github.com/selinachegg/research-grant-craft"
+                href="https://github.com/selinachegg/research-grant-craft/blob/main/docs/LIMITATIONS.md"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-slate-900 transition-colors"
+                className="underline hover:text-slate-600 dark:hover:text-slate-300"
               >
-                GitHub
+                Limitations
               </a>
-            </nav>
+            </p>
           </div>
-        </header>
-        <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-        <footer className="border-t border-slate-200 mt-16 py-6 text-center text-sm text-slate-400">
-          <p>
-            Research Grant Craft — open-source, local-first.{' '}
-            <a
-              href="https://github.com/selinachegg/research-grant-craft"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-slate-600"
-            >
-              View on GitHub
-            </a>{' '}
-            ·{' '}
-            <a href="/privacy" className="underline hover:text-slate-600">
-              Privacy
-            </a>
-            {' · '}
-            <span>MIT Licence</span>
-          </p>
-          <p className="mt-1 text-xs text-slate-300">
-            This tool does not predict funding outcomes. See{' '}
-            <a
-              href="https://github.com/selinachegg/research-grant-craft/blob/main/docs/LIMITATIONS.md"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              Limitations
-            </a>
-            .
-          </p>
         </footer>
       </body>
     </html>

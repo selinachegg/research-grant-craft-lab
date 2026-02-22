@@ -2,10 +2,62 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { loadDraft } from '@/lib/drafts/store';
 import type { ReviewerReport } from '@/lib/reviewer/types';
+
+// ---------------------------------------------------------------------------
+// Skeleton loader
+// ---------------------------------------------------------------------------
+
+function Skeleton({ className }: { className?: string }) {
+  return <div className={`skeleton rounded-xl ${className ?? ''}`} />;
+}
+
+function ScoringLoader() {
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Summary card skeleton */}
+      <div className="card p-6">
+        <div className="flex items-start justify-between mb-5">
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-48" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="space-y-1.5 text-right">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-3 w-16" />
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center gap-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Report skeleton */}
+      <div className="card p-8 space-y-4">
+        {[80, 60, 90, 50, 70, 40, 80].map((w, i) => (
+          <Skeleton key={i} className={`h-4 w-[${w}%]`} />
+        ))}
+        <div className="pt-2" />
+        {[65, 85, 45, 75].map((w, i) => (
+          <Skeleton key={i} className={`h-4 w-[${w}%]`} />
+        ))}
+      </div>
+
+      <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
+        Analysing your proposal against Horizon Europe criteria…
+      </p>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Score badge
@@ -15,8 +67,10 @@ function ScoreBadge({ score, threshold, max }: { score: number; threshold: numbe
   const passed = score >= threshold;
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-        passed ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+        passed
+          ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+          : 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300'
       }`}
     >
       {passed ? '✅' : '❌'} {score} / {max}
@@ -29,33 +83,40 @@ function ScoreBadge({ score, threshold, max }: { score: number; threshold: numbe
 // ---------------------------------------------------------------------------
 
 function SummaryCard({ report }: { report: ReviewerReport }) {
+  const passed = report.overallPassed;
   return (
     <div
-      className={`rounded-xl border p-5 mb-6 ${
-        report.overallPassed
-          ? 'bg-emerald-50 border-emerald-200'
-          : 'bg-red-50 border-red-200'
+      className={`rounded-2xl border-2 p-6 mb-6 ${
+        passed
+          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800'
+          : 'bg-red-50 dark:bg-red-950/40 border-red-300 dark:border-red-800'
       }`}
     >
-      <div className="flex items-start justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-4 mb-5">
         <div>
-          <p className="text-lg font-semibold text-slate-900">
-            {report.overallPassed ? '✅ Overall: PASS' : '❌ Overall: BELOW THRESHOLD'}
+          <p className={`text-xl font-bold ${passed ? 'text-emerald-800 dark:text-emerald-200' : 'text-red-800 dark:text-red-200'}`}>
+            {passed ? '✅ Overall: PASS' : '❌ Overall: BELOW THRESHOLD'}
           </p>
-          <p className="text-sm text-slate-600 mt-1">
-            Total score: <strong>{report.overallScore}</strong> / {report.maxPossibleScore} ·
-            Threshold: ≥ 10.0 total, ≥ 3.0 per criterion
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+            Total score:{' '}
+            <strong className="text-slate-900 dark:text-slate-100">{report.overallScore}</strong>{' '}
+            / {report.maxPossibleScore} · Threshold: ≥ 10.0 total, ≥ 3.0 per criterion
           </p>
         </div>
-        <div className="flex flex-col gap-1 text-right">
-          <span className="text-xs text-slate-400">{report.draftWordCount} words</span>
-          <span className="text-xs text-slate-400">{report.draftSectionCount} headings</span>
+        <div className="text-right space-y-1">
+          <p className="text-xs text-slate-400 dark:text-slate-500">{report.draftWordCount.toLocaleString()} words</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500">{report.draftSectionCount} headings</p>
         </div>
       </div>
-      <div className="flex flex-wrap gap-3 mt-4">
+
+      {/* Criteria breakdown */}
+      <div className="flex flex-wrap gap-4">
         {report.criteria.map((c) => (
-          <div key={c.criterionId} className="flex items-center gap-2 text-sm">
-            <span className="text-slate-600">{c.criterionTitle}</span>
+          <div
+            key={c.criterionId}
+            className="flex items-center gap-2.5 bg-white/60 dark:bg-slate-900/40 rounded-xl px-3 py-2"
+          >
+            <span className="text-sm text-slate-700 dark:text-slate-300 font-medium">{c.criterionTitle}</span>
             <ScoreBadge score={c.score} threshold={c.threshold} max={c.maxScore} />
           </div>
         ))}
@@ -82,7 +143,6 @@ export default function ReviewPage() {
 
   useEffect(() => {
     async function run() {
-      // Load draft from localStorage
       const draft = loadDraft(draftId);
       if (!draft) {
         setErrorMsg('Draft not found. It may have been cleared from browser storage.');
@@ -141,72 +201,70 @@ export default function ReviewPage() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Back + title */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-8 flex-wrap gap-4">
         <div>
-          <button
-            type="button"
-            onClick={() => router.push(`/editor/${draftId}`)}
-            className="text-sm text-slate-500 hover:text-slate-800 transition-colors mb-1"
+          <Link
+            href={`/editor/${draftId}`}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 mb-2 transition-colors"
           >
-            ← Back to editor
-          </button>
-          <h1 className="text-2xl font-bold text-slate-900">Reviewer Report</h1>
+            <ChevronLeftIcon className="w-4 h-4" />
+            Back to editor
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Reviewer Report</h1>
           {draftTitle && (
-            <p className="text-sm text-slate-500 mt-0.5">{draftTitle}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{draftTitle}</p>
           )}
         </div>
+
         {status === 'done' && report && (
           <button
             type="button"
             onClick={handleDownload}
-            className="px-4 py-2 text-sm border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 transition-colors"
+            className="btn-secondary shrink-0"
           >
-            ↓ Download report
+            <DownloadIcon className="w-3.5 h-3.5" />
+            Download report
           </button>
         )}
       </div>
 
-      {/* Loading */}
-      {(status === 'loading' || status === 'scoring') && (
-        <div className="text-center py-24 text-slate-500">
-          <div className="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4" />
-          <p className="text-sm">
-            {status === 'loading' ? 'Loading draft…' : 'Scoring draft…'}
-          </p>
-        </div>
-      )}
+      {/* ── Loading / scoring ── */}
+      {(status === 'loading' || status === 'scoring') && <ScoringLoader />}
 
-      {/* Error */}
+      {/* ── Error ── */}
       {status === 'error' && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <p className="text-red-700 font-medium mb-2">Could not generate report</p>
-          <p className="text-sm text-red-600">{errorMsg}</p>
+        <div className="card p-8 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center mx-auto mb-4">
+            <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
+          </div>
+          <p className="text-slate-900 dark:text-slate-100 font-semibold mb-2">Could not generate report</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{errorMsg}</p>
           <button
             type="button"
             onClick={() => router.push(`/editor/${draftId}`)}
-            className="mt-4 px-4 py-2 text-sm bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+            className="btn-primary"
           >
             Back to editor
           </button>
         </div>
       )}
 
-      {/* Report */}
+      {/* ── Report ── */}
       {status === 'done' && report && (
-        <>
+        <div className="animate-fade-in">
           <SummaryCard report={report} />
 
           {/* Disclaimer */}
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-xs text-amber-800 mb-6">
+          <div className="rounded-xl px-4 py-3 text-xs mb-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
             ⚠ <strong>Heuristic assessment only.</strong> This report checks for the presence of
-            structural content signals. It does not evaluate scientific quality and does not
-            predict the outcome of any evaluation panel. See{' '}
+            structural content signals. It does not evaluate scientific quality and does not predict
+            the outcome of any evaluation panel. See{' '}
             <a
               href="https://github.com/selinachegg/research-grant-craft/blob/main/docs/LIMITATIONS.md"
               target="_blank"
               rel="noopener noreferrer"
-              className="underline"
+              className="underline font-medium"
             >
               Limitations
             </a>
@@ -214,13 +272,42 @@ export default function ReviewPage() {
           </div>
 
           {/* Full markdown report */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-8 prose-report">
+          <div className="card p-6 sm:p-8 prose-report">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {report.markdownReport}
             </ReactMarkdown>
           </div>
-        </>
+        </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline SVG icons
+// ---------------------------------------------------------------------------
+
+function ChevronLeftIcon({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function DownloadIcon({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+      <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
+      <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+    </svg>
+  );
+}
+
+function XCircleIcon({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25Zm-1.72 6.97a.75.75 0 1 0-1.06 1.06L10.94 12l-1.72 1.72a.75.75 0 1 0 1.06 1.06L12 13.06l1.72 1.72a.75.75 0 1 0 1.06-1.06L13.06 12l1.72-1.72a.75.75 0 1 0-1.06-1.06L12 10.94l-1.72-1.72Z" clipRule="evenodd" />
+    </svg>
   );
 }
