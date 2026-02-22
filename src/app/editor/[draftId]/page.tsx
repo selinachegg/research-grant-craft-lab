@@ -223,12 +223,14 @@ export default function EditorPage() {
         </ToolbarButton>
       </div>
 
-      {/* Mock mode banner */}
+      {/* Mock / template mode banner */}
       {mockBanner && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-xs text-amber-800 flex items-center justify-between">
           <span>
-            ⚠ <strong>Mock mode</strong> — draft generated from scaffolding templates.
-            Configure an API key in settings for AI-generated content.
+            <strong>Template mode</strong> — your structured grant application is ready.
+            Search for <code className="bg-amber-100 px-1 rounded">[FILL IN:</code> to find every cell that needs your input.
+            Amber boxes in the preview are section guidance notes.{' '}
+            <a href="/settings" className="underline font-medium">Add an API key</a> for AI-drafted text.
           </span>
           <button
             type="button"
@@ -261,10 +263,14 @@ export default function EditorPage() {
         {/* Preview pane */}
         {(view === 'preview' || view === 'split') && (
           <div className={`flex flex-col overflow-hidden ${view === 'split' ? 'w-1/2' : 'w-full'}`}>
-            <div className="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-50 border-b border-slate-100">
-              Preview
+            <div className="px-3 py-1.5 text-xs font-medium text-slate-400 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+              <span>Preview</span>
+              <span className="flex items-center gap-1.5 text-amber-700">
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400" />
+                Amber boxes = sections to complete
+              </span>
             </div>
-            <div className="flex-1 overflow-y-auto p-6 prose-report">
+            <div className="flex-1 overflow-y-auto p-6 prose-draft">
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (

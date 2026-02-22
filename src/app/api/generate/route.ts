@@ -35,37 +35,63 @@ function buildPrompt(state: WizardState): string {
 
   const partners = state.partners
     .filter((p) => p.name.trim())
-    .map((p) => `- ${p.name} (${p.country}, ${p.type}): ${p.role}`)
+    .map(
+      (p) =>
+        `- ${p.name} (${p.country}, ${p.type}): ${p.role}${p.expertise ? ' — ' + p.expertise : ''}`,
+    )
     .join('\n');
 
-  return `You are an expert scientific grant writer. Generate a structured Horizon Europe RIA proposal draft in Markdown format based on the following intake information.
+  return `You are a senior Horizon Europe proposal consultant. Produce a STRUCTURED GRANT APPLICATION TEMPLATE in Markdown for a Horizon Europe RIA/IA proposal.
 
-Project acronym: ${state.acronym}
-Full title: ${state.fullTitle}
-Abstract: ${state.abstract}
+---
 
-Objectives:
-${objectives || '[None provided]'}
+## RESEARCHER INPUT
 
-Current TRL: ${state.currentTrl || '[Not specified]'}
-Target TRL: ${state.targetTrl || '[Not specified]'}
+**Project acronym:** ${state.acronym || '[not set]'}
+**Full title:** ${state.fullTitle || '[not set]'}
+**Duration:** ${state.durationMonths} months
+**Total budget:** €${state.totalBudgetEuros || '[not specified]'}
+**TRL journey:** ${state.currentTrl || '?'} → ${state.targetTrl || '?'}
 
-State-of-art gap:
-${state.stateOfArtGap || '[Not specified]'}
+**Research idea / abstract (primary AI input):**
+${state.abstract || '[No abstract provided — all sections will need manual completion]'}
 
-Consortium:
+**Stated objectives:**
+${objectives || '[None stated]'}
+
+**Gap in state of the art:**
+${state.stateOfArtGap || '[Not described]'}
+
+**Consortium partners:**
 ${partners || '[Not specified]'}
 
-Project duration: ${state.durationMonths} months
-Total budget: €${state.totalBudgetEuros || '[TBC]'}
-
-Key milestones:
+**Key milestones:**
 ${state.keyMilestones || '[Not specified]'}
 
-Generate a complete draft with three sections: 1. Excellence, 2. Impact, 3. Implementation.
-Each section should have the appropriate Horizon Europe sub-sections.
-Use formal academic English. Include quantified targets, methodology, and risk register.
-Mark any information that was not provided as [TO BE COMPLETED].`;
+---
+
+## OUTPUT RULES
+
+Produce the full Horizon Europe proposal template covering sections 1 (Excellence), 2 (Impact), and 3 (Implementation) with all official sub-sections.
+
+Apply these rules for EVERY paragraph and table cell:
+
+**RULE A — Write content** when you can meaningfully infer it from the abstract or intake data. Prefix AI-drafted sentences with "(AI draft — verify:)" so the researcher knows to check and expand them.
+
+**RULE B — Insert a fill-in cell** when information is missing or must come from the researcher. Use this exact inline format:
+\`[FILL IN: specific, actionable guidance on exactly what to write here]\`
+
+**RULE C — Add a guidance blockquote** at the end of each complex sub-section:
+> **Guidance:** What evaluators look for in this sub-section and tips for completing it.
+
+Additional rules:
+- NEVER skip or leave blank any sub-section. Every sub-section needs either content or a fill-in cell.
+- For each objective the researcher stated, keep it and suggest a SMART reformulation in parentheses if useful.
+- If no objectives were stated, propose 4–5 based on the abstract and mark each as "(AI suggestion — verify and adjust:)".
+- All required Horizon Europe tables must be included: Work Package table, Milestone table, Deliverable list, Risk Register, Budget table. Populate rows with available data; use \`[FILL IN: ...]\` for every unknown cell.
+- The Work Package table must cover WP1 Management, plus one WP per major research theme you can identify from the abstract, plus a final WP for Dissemination & Exploitation.
+- Write in formal academic English.
+- Output ONLY the Markdown proposal. No preamble, no closing remarks outside the document.`;
 }
 
 export async function POST(req: NextRequest) {
