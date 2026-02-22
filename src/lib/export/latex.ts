@@ -310,9 +310,21 @@ ${body}
 }
 
 // ---------------------------------------------------------------------------
-// Public export function
+// Public export functions
 // ---------------------------------------------------------------------------
 
+/** Trigger a .tex file download from a pre-rendered LaTeX string (AI output). */
+export function downloadLatex(latexSource: string, title: string): void {
+  const blob = new Blob([latexSource], { type: 'text/plain; charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.replace(/[^a-z0-9]+/gi, '_').toLowerCase()}.tex`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Fallback export: converts markdown client-side (no AI, no API key required). */
 export function exportAsLatex(markdown: string, title: string): void {
   const body = convertBody(markdown);
   const latex = buildDocument(title, body);

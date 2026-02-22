@@ -147,19 +147,16 @@ function mdToHtml(markdown: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Public export function
+// Shared print template
 // ---------------------------------------------------------------------------
 
-export function exportAsPdf(markdown: string, title: string): void {
-  const body = mdToHtml(markdown);
-  const safeTitle = htmlEsc(title);
+function buildPrintTemplate(bodyHtml: string, safeTitle: string): string {
   const today = new Date().toLocaleDateString('en-GB', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
-
-  const html = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -176,27 +173,19 @@ export function exportAsPdf(markdown: string, title: string): void {
     border-bottom: 3px solid #4f46e5; padding-bottom: 10px; margin-bottom: 4px;
   }
   .doc-meta { color: #666; font-size: 9pt; margin-bottom: 36px; padding-bottom: 12px; border-bottom: 1px solid #ddd; }
-  h1 { font-size: 15pt; color: #1e1b4b; border-bottom: 2px solid #4f46e5;
-       padding-bottom: 6px; margin-top: 36px; }
+  h1 { font-size: 15pt; color: #1e1b4b; border-bottom: 2px solid #4f46e5; padding-bottom: 6px; margin-top: 36px; }
   h2 { font-size: 13pt; border-bottom: 1px solid #bbb; margin-top: 28px; padding-bottom: 4px; }
   h3 { font-size: 12pt; margin-top: 20px; color: #333; }
   h4, h5, h6 { font-size: 11pt; margin-top: 14px; }
   p { margin: 6px 0 10px; }
-  blockquote {
-    border-left: 4px solid #6366f1; margin: 14px 0; padding: 8px 14px;
-    color: #444; background: #f8f8ff; font-style: italic;
-  }
+  blockquote { border-left: 4px solid #6366f1; margin: 14px 0; padding: 8px 14px; color: #444; background: #f8f8ff; font-style: italic; }
   table { border-collapse: collapse; width: 100%; margin: 14px 0; font-size: 9.5pt; }
-  th { background: #ede9fe; font-weight: bold; border: 1px solid #c4b5fd;
-       padding: 6px 10px; text-align: left; }
+  th { background: #ede9fe; font-weight: bold; border: 1px solid #c4b5fd; padding: 6px 10px; text-align: left; }
   td { border: 1px solid #ddd; padding: 5px 10px; vertical-align: top; }
-  mark { background: #fff3cd; padding: 1px 4px; border-radius: 3px;
-         font-style: italic; color: #856404; font-size: 0.9em; }
+  mark { background: #fff3cd; padding: 1px 4px; border-radius: 3px; font-style: italic; color: #856404; font-size: 0.9em; }
   .ai-tag { color: #6366f1; font-style: italic; font-size: 0.9em; }
-  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px;
-         font-family: monospace; font-size: 9pt; }
-  pre  { background: #f4f4f4; padding: 12px; border-radius: 6px;
-         font-size: 9pt; white-space: pre-wrap; word-break: break-all; }
+  code { background: #f4f4f4; padding: 1px 4px; border-radius: 3px; font-family: monospace; font-size: 9pt; }
+  pre  { background: #f4f4f4; padding: 12px; border-radius: 6px; font-size: 9pt; white-space: pre-wrap; word-break: break-all; }
   hr   { border: none; border-top: 1px solid #ccc; margin: 22px 0; }
   ul, ol { margin: 6px 0 10px; padding-left: 22px; }
   li   { margin: 3px 0; }
@@ -214,7 +203,7 @@ export function exportAsPdf(markdown: string, title: string): void {
 <body>
 <div class="doc-title">${safeTitle}</div>
 <div class="doc-meta">Horizon Europe Proposal &nbsp;·&nbsp; Exported ${today} via Research Grant Craft Lab</div>
-${body}
+${bodyHtml}
 <script>
   window.addEventListener('load', function () {
     setTimeout(function () { window.print(); }, 300);
@@ -222,27 +211,39 @@ ${body}
 </script>
 </body>
 </html>`;
+}
 
-  // Use an invisible iframe to avoid pop-up blocker
+function openPrintIframe(fullHtml: string): void {
   const iframe = document.createElement('iframe');
   Object.assign(iframe.style, {
     position: 'fixed', right: '0', bottom: '0',
     width: '0', height: '0', border: '0', visibility: 'hidden',
   });
   document.body.appendChild(iframe);
-
   const doc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!doc) {
-    document.body.removeChild(iframe);
-    return;
-  }
-
+  if (!doc) { document.body.removeChild(iframe); return; }
   doc.open();
-  doc.write(html);
+  doc.write(fullHtml);
   doc.close();
+  setTimeout(() => { document.body.removeChild(iframe); }, 30_000);
+}
 
-  // Clean up after user dismisses print dialog
-  setTimeout(() => {
-    document.body.removeChild(iframe);
-  }, 30_000);
+// ---------------------------------------------------------------------------
+// Public export functions
+// ---------------------------------------------------------------------------
+
+/**
+ * AI-finalized export: receives pre-rendered clean HTML body from the LLM
+ * (via /api/export-finalize) and injects it into the print template.
+ */
+export function exportAsPdfFromHtml(htmlBody: string, title: string): void {
+  const safeTitle = htmlEsc(title);
+  openPrintIframe(buildPrintTemplate(htmlBody, safeTitle));
+}
+
+/**
+ * Fallback export: converts markdown client-side (no AI, no API key required).
+ */
+export function exportAsPdf(markdown: string, title: string): void {
+  openPrintIframe(buildPrintTemplate(mdToHtml(markdown), htmlEsc(title)));
 }

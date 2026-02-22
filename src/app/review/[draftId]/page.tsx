@@ -9,8 +9,8 @@ import { loadDraft } from '@/lib/drafts/store';
 import { loadLlmConfig } from '@/lib/llm/types';
 import type { LlmConfig } from '@/lib/llm/types';
 import type { ReviewerReport } from '@/lib/reviewer/types';
-import { exportAsPdf } from '@/lib/export/pdf';
-import { exportAsLatex } from '@/lib/export/latex';
+import { exportAsPdf, exportAsPdfFromHtml } from '@/lib/export/pdf';
+import { exportAsLatex, downloadLatex } from '@/lib/export/latex';
 
 // ---------------------------------------------------------------------------
 // Export proposal section (PDF + LaTeX)
@@ -19,12 +19,15 @@ import { exportAsLatex } from '@/lib/export/latex';
 function ExportSection({
   draftContent,
   draftTitle,
+  llmConfig,
 }: {
   draftContent: string;
   draftTitle: string;
+  llmConfig: LlmConfig | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'latex' | null>(null);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -34,41 +37,103 @@ function ExportSection({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  async function handleExportPdf() {
+    setOpen(false);
+    let aiUsed = false;
+    if (llmConfig?.endpoint && llmConfig?.apiKey) {
+      setExportingFormat('pdf');
+      try {
+        const res = await fetch('/api/export-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftContent, title: draftTitle, format: 'pdf-html', config: llmConfig }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          exportAsPdfFromHtml(data.htmlBody as string, draftTitle);
+          aiUsed = true;
+        }
+      } catch { /* fall through */ } finally {
+        setExportingFormat(null);
+      }
+    }
+    if (!aiUsed) exportAsPdf(draftContent, draftTitle);
+  }
+
+  async function handleExportLatex() {
+    setOpen(false);
+    let aiUsed = false;
+    if (llmConfig?.endpoint && llmConfig?.apiKey) {
+      setExportingFormat('latex');
+      try {
+        const res = await fetch('/api/export-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftContent, title: draftTitle, format: 'latex', config: llmConfig }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          downloadLatex(data.latexSource as string, draftTitle);
+          aiUsed = true;
+        }
+      } catch { /* fall through */ } finally {
+        setExportingFormat(null);
+      }
+    }
+    if (!aiUsed) exportAsLatex(draftContent, draftTitle);
+  }
+
   const item =
     'w-full text-left flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors';
 
-  return (
-    <div ref={ref} className="relative shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5"
-      >
-        <ShareIcon className="w-3.5 h-3.5" />
-        Export proposal
-        <ChevronDownSmIcon className="w-3 h-3 ml-0.5" />
-      </button>
+  const hasAi = !!(llmConfig?.endpoint && llmConfig?.apiKey);
 
-      {open && (
-        <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 w-52 animate-fade-in">
-          <p className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-            Export your proposal
-          </p>
-          <button
-            className={item}
-            onClick={() => { exportAsPdf(draftContent, draftTitle); setOpen(false); }}
-          >
-            <PdfIcon className="w-3.5 h-3.5 text-red-400" /> Print / Save as PDF
-          </button>
-          <button
-            className={item}
-            onClick={() => { exportAsLatex(draftContent, draftTitle); setOpen(false); }}
-          >
-            <TexIcon className="w-3.5 h-3.5 text-brand-500" /> Download LaTeX (.tex)
-          </button>
+  return (
+    <>
+      <div ref={ref} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          disabled={!!exportingFormat}
+          className="btn-primary py-1.5 px-4 text-xs flex items-center gap-1.5 disabled:opacity-60"
+        >
+          {exportingFormat ? (
+            <><SpinnerSmIcon className="w-3.5 h-3.5 animate-spin" /> Finalizing…</>
+          ) : (
+            <><ShareIcon className="w-3.5 h-3.5" /> Export proposal <ChevronDownSmIcon className="w-3 h-3 ml-0.5" /></>
+          )}
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg py-1 w-56 animate-fade-in">
+            <p className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              Export your proposal {hasAi && <span className="text-brand-500">· AI-finalized</span>}
+            </p>
+            {hasAi && (
+              <p className="px-3 pb-1.5 text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
+                AI will fill all placeholders and produce a clean final document.
+              </p>
+            )}
+            <button className={item} onClick={handleExportPdf}>
+              <PdfIcon className="w-3.5 h-3.5 text-red-400 shrink-0" /> Print / Save as PDF
+            </button>
+            <button className={item} onClick={handleExportLatex}>
+              <TexIcon className="w-3.5 h-3.5 text-brand-500 shrink-0" /> Download LaTeX (.tex)
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Loading toast */}
+      {exportingFormat && (
+        <div className="fixed bottom-6 right-6 z-50 card px-5 py-3 text-sm flex items-center gap-3 shadow-lg animate-fade-in">
+          <SpinnerSmIcon className="w-4 h-4 animate-spin text-brand-500 shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300">
+            AI is finalizing your {exportingFormat === 'pdf' ? 'PDF' : 'LaTeX'} — completing all sections…
+          </span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -558,7 +623,7 @@ export default function ReviewPage() {
             </button>
           )}
           {draftContent && (
-            <ExportSection draftContent={draftContent} draftTitle={draftTitle} />
+            <ExportSection draftContent={draftContent} draftTitle={draftTitle} llmConfig={llmConfig} />
           )}
         </div>
       </div>
@@ -626,6 +691,9 @@ export default function ReviewPage() {
 // Icons
 // ---------------------------------------------------------------------------
 
+function SpinnerSmIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>;
+}
 function ChevronDownSmIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>;
 }

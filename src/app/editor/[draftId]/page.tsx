@@ -8,8 +8,8 @@ import remarkGfm from 'remark-gfm';
 import { loadDraft, saveDraft } from '@/lib/drafts/store';
 import { loadWizardState } from '@/lib/wizard/store';
 import { loadLlmConfig, generateDraft } from '@/lib/llm';
-import { exportAsPdf } from '@/lib/export/pdf';
-import { exportAsLatex } from '@/lib/export/latex';
+import { exportAsPdf, exportAsPdfFromHtml } from '@/lib/export/pdf';
+import { exportAsLatex, downloadLatex } from '@/lib/export/latex';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -134,6 +134,7 @@ export default function EditorPage() {
   const [generating, setGenerating] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [mockBanner, setMockBanner] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'pdf' | 'latex' | null>(null);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -227,6 +228,52 @@ export default function EditorPage() {
     URL.revokeObjectURL(url);
   }
 
+  async function handleExportPdf() {
+    const cfg = loadLlmConfig();
+    let aiUsed = false;
+    if (cfg.endpoint && cfg.apiKey) {
+      setExportingFormat('pdf');
+      try {
+        const res = await fetch('/api/export-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftContent: content, title, format: 'pdf-html', config: cfg }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          exportAsPdfFromHtml(data.htmlBody as string, title);
+          aiUsed = true;
+        }
+      } catch { /* fall through to client-side */ } finally {
+        setExportingFormat(null);
+      }
+    }
+    if (!aiUsed) exportAsPdf(content, title);
+  }
+
+  async function handleExportLatex() {
+    const cfg = loadLlmConfig();
+    let aiUsed = false;
+    if (cfg.endpoint && cfg.apiKey) {
+      setExportingFormat('latex');
+      try {
+        const res = await fetch('/api/export-finalize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftContent: content, title, format: 'latex', config: cfg }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          downloadLatex(data.latexSource as string, title);
+          aiUsed = true;
+        }
+      } catch { /* fall through to client-side */ } finally {
+        setExportingFormat(null);
+      }
+    }
+    if (!aiUsed) exportAsLatex(content, title);
+  }
+
   async function handleReview() {
     saveDraft({
       draftId,
@@ -313,8 +360,8 @@ export default function EditorPage() {
         {/* Export dropdown */}
         <ExportDropdown
           onDownloadMd={handleDownload}
-          onExportPdf={() => exportAsPdf(content, title)}
-          onExportLatex={() => exportAsLatex(content, title)}
+          onExportPdf={handleExportPdf}
+          onExportLatex={handleExportLatex}
         />
 
         {/* Review */}
@@ -393,6 +440,16 @@ export default function EditorPage() {
           </div>
         )}
       </div>
+
+      {/* Export loading toast */}
+      {exportingFormat && (
+        <div className="fixed bottom-6 right-6 z-50 card px-5 py-3 text-sm flex items-center gap-3 shadow-lg animate-fade-in">
+          <SpinnerIcon className="w-4 h-4 animate-spin text-brand-500 shrink-0" />
+          <span className="text-slate-700 dark:text-slate-300">
+            AI is finalizing your {exportingFormat === 'pdf' ? 'PDF' : 'LaTeX'} — filling in all sections…
+          </span>
+        </div>
+      )}
     </div>
   );
 }
