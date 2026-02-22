@@ -18,6 +18,31 @@ function wordCount(text: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// Tooltip — shows on hover/focus, positions above trigger
+// ---------------------------------------------------------------------------
+
+function Tooltip({ content, children }: { content: string; children: React.ReactNode }) {
+  const [show, setShow] = useState(false);
+  return (
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onFocus={() => setShow(true)}
+      onBlur={() => setShow(false)}
+    >
+      {children}
+      {show && (
+        <span className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 px-3 py-2 bg-slate-900 dark:bg-slate-700 text-slate-100 text-xs rounded-xl shadow-dropdown leading-relaxed whitespace-normal text-center animate-fade-in pointer-events-none">
+          {content}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900 dark:border-t-slate-700" />
+        </span>
+      )}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main editor page
 // ---------------------------------------------------------------------------
 
@@ -42,7 +67,7 @@ export default function EditorPage() {
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load draft from localStorage on mount
+  // Load draft on mount
   useEffect(() => {
     const existing = loadDraft(draftId);
     if (existing) {
@@ -52,7 +77,6 @@ export default function EditorPage() {
       if (existing.wizardId && !urlWizardId) setWizardId(existing.wizardId);
       return;
     }
-
     const wid = urlWizardId;
     if (wid) {
       const wizard = loadWizardState(wid);
@@ -94,6 +118,14 @@ export default function EditorPage() {
   }
 
   async function handleGenerate(wizardOverride?: ReturnType<typeof loadWizardState>) {
+    // If content already exists, ask for confirmation before overwriting
+    if (!wizardOverride && content.trim().length > 100) {
+      const confirmed = window.confirm(
+        'Regenerate will overwrite your current draft with a new AI-generated version.\n\nAny edits you made will be lost.\n\nContinue?',
+      );
+      if (!confirmed) return;
+    }
+
     setGenerating(true);
     try {
       const wizard = wizardOverride ?? (wizardId ? loadWizardState(wizardId) : null);
@@ -143,19 +175,18 @@ export default function EditorPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)] -mt-8 -mx-4 sm:-mx-6">
+
       {/* ── Toolbar ── */}
       <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-wrap shrink-0">
 
-        {/* Back link */}
         <Link
           href="/"
           className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors shrink-0"
-          title="All proposals"
+          title="Back to all proposals"
         >
           <ChevronLeftIcon className="w-4 h-4" />
         </Link>
 
-        {/* Title input */}
         <input
           value={title}
           onChange={(e) => {
@@ -166,14 +197,13 @@ export default function EditorPage() {
           placeholder="Proposal title"
         />
 
-        {/* Status */}
+        {/* Word count + save status */}
         <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0 hidden sm:inline">
           {wc.toLocaleString()} words ·{' '}
-          {saveStatus === 'saved' ? (
-            <span className="text-emerald-600 dark:text-emerald-400">Saved</span>
-          ) : (
-            <span className="text-amber-500 dark:text-amber-400">Saving…</span>
-          )}
+          {saveStatus === 'saved'
+            ? <span className="text-emerald-600 dark:text-emerald-400">Saved</span>
+            : <span className="text-amber-500 dark:text-amber-400">Saving…</span>
+          }
         </span>
 
         {/* View toggle */}
@@ -183,6 +213,7 @@ export default function EditorPage() {
               key={v}
               type="button"
               onClick={() => setView(v)}
+              title={v === 'split' ? 'Show editor and preview side by side' : v === 'editor' ? 'Show markdown editor only' : 'Show formatted preview only'}
               className={`px-2.5 py-1 text-xs capitalize transition-colors ${
                 view === v
                   ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900'
@@ -194,74 +225,80 @@ export default function EditorPage() {
           ))}
         </div>
 
-        {/* Actions */}
-        <button
-          type="button"
-          onClick={() => handleGenerate()}
-          disabled={generating}
-          className="btn-secondary py-1 px-3 text-xs shrink-0"
-        >
-          {generating ? (
-            <><SpinnerIcon className="w-3 h-3 animate-spin" /> Generating…</>
-          ) : (
-            <><SparklesIcon className="w-3 h-3" /> Regenerate</>
-          )}
-        </button>
+        {/* Regenerate */}
+        <Tooltip content="Re-runs AI generation from your wizard answers. Will overwrite the current draft — you'll be asked to confirm.">
+          <button
+            type="button"
+            onClick={() => handleGenerate()}
+            disabled={generating}
+            className="btn-secondary py-1 px-3 text-xs shrink-0"
+          >
+            {generating
+              ? <><SpinnerIcon className="w-3 h-3 animate-spin" /> Generating…</>
+              : <><SparklesIcon className="w-3 h-3" /> Regenerate</>
+            }
+          </button>
+        </Tooltip>
 
-        <button
-          type="button"
-          onClick={handleDownload}
-          className="btn-secondary py-1 px-3 text-xs shrink-0"
-          title="Download as Markdown"
-        >
-          <DownloadIcon className="w-3 h-3" />
-          <span className="hidden sm:inline">Download</span>
-        </button>
+        {/* Download */}
+        <Tooltip content="Download the current draft as a Markdown (.md) file.">
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="btn-secondary py-1 px-3 text-xs shrink-0"
+          >
+            <DownloadIcon className="w-3 h-3" />
+            <span className="hidden sm:inline">Download</span>
+          </button>
+        </Tooltip>
 
-        <button
-          type="button"
-          onClick={handleReview}
-          disabled={wc < 50}
-          className="btn-primary py-1 px-3 text-xs shrink-0 disabled:opacity-40"
-          title={wc < 50 ? 'Add more content before reviewing' : 'Generate reviewer report'}
-        >
-          Review <ArrowRightIcon className="w-3 h-3" />
-        </button>
+        {/* Review */}
+        <Tooltip content="Run the automated reviewer — scores your draft across 22 structural signals aligned to the Horizon Europe rubric and gives you a ranked action plan.">
+          <button
+            type="button"
+            onClick={handleReview}
+            disabled={wc < 50}
+            className="btn-primary py-1 px-3 text-xs shrink-0 disabled:opacity-40"
+          >
+            Review <ArrowRightIcon className="w-3 h-3" />
+          </button>
+        </Tooltip>
       </div>
 
-      {/* ── Mock / template mode banner ── */}
+      {/* ── Template mode banner ── */}
       {mockBanner && (
-        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 px-4 py-2 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between shrink-0">
-          <span>
-            <strong>Template mode</strong> — your structured grant scaffold is ready.
-            Search for{' '}
-            <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded font-mono">[FILL IN:</code>
-            {' '}to find every cell that needs your input. Amber boxes in the preview are guidance notes.{' '}
-            <Link href="/settings" className="underline font-medium">Add an API key</Link> for AI-written drafts.
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 px-4 py-2.5 text-xs text-amber-800 dark:text-amber-300 flex items-start justify-between gap-3 shrink-0">
+          <span className="leading-relaxed">
+            <strong>Template mode active</strong> — your structured grant scaffold is ready.
+            Search for <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded font-mono">[FILL IN:</code> to find every cell that needs your input.
+            Amber-highlighted boxes in the preview are guidance notes — read them, then replace with your content.{' '}
+            <Link href="/settings" className="underline font-medium">Connect an AI model</Link> to get fully written prose instead.
           </span>
           <button
             type="button"
             onClick={() => setMockBanner(false)}
-            className="ml-4 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 shrink-0 transition-colors"
+            aria-label="Dismiss"
+            className="ml-2 shrink-0 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 transition-colors text-base leading-none"
           >
             ×
           </button>
         </div>
       )}
 
-      {/* ── Editor / preview panes ── */}
+      {/* ── Editor + Preview ── */}
       <div className="flex flex-1 overflow-hidden">
+
         {/* Editor pane */}
         {(view === 'editor' || view === 'split') && (
           <div className={`flex flex-col ${view === 'split' ? 'w-1/2 border-r border-slate-200 dark:border-slate-800' : 'w-full'}`}>
             <div className="px-3 py-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 shrink-0">
-              Markdown
+              Markdown source
             </div>
             <textarea
               value={content}
               onChange={(e) => handleContentChange(e.target.value)}
               className="flex-1 p-4 text-sm font-mono text-slate-800 dark:text-slate-200 resize-none focus:outline-none bg-white dark:bg-slate-950 leading-relaxed"
-              placeholder="Your proposal draft will appear here. Click ✨ Regenerate to generate from wizard answers."
+              placeholder="Your proposal draft will appear here after generation. Click ✨ Regenerate to create from your wizard answers."
               spellCheck
             />
           </div>
@@ -270,18 +307,22 @@ export default function EditorPage() {
         {/* Preview pane */}
         {(view === 'preview' || view === 'split') && (
           <div className={`flex flex-col overflow-hidden ${view === 'split' ? 'w-1/2' : 'w-full'}`}>
-            <div className="px-3 py-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 shrink-0 flex items-center gap-3">
-              <span>Preview</span>
+            <div className="px-3 py-1.5 text-xs font-medium text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 shrink-0 flex items-center gap-4">
+              <span>Formatted preview</span>
               <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 dark:bg-amber-600" />
-                Amber boxes = sections to complete
+                <span className="inline-block w-2.5 h-2.5 rounded-sm bg-amber-400 dark:bg-amber-600 shrink-0" />
+                Amber boxes = guidance to act on
               </span>
             </div>
             <div className="flex-1 overflow-y-auto p-6 prose-draft">
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (
-                <p className="text-slate-400 dark:text-slate-500 italic text-sm">Nothing to preview yet.</p>
+                <div className="text-center py-16 text-slate-400 dark:text-slate-500">
+                  <SparklesIcon className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  <p className="text-sm font-medium mb-1">No draft yet</p>
+                  <p className="text-xs">Click <strong>Regenerate</strong> in the toolbar to generate from your wizard answers.</p>
+                </div>
               )}
             </div>
           </div>
@@ -292,47 +333,21 @@ export default function EditorPage() {
 }
 
 // ---------------------------------------------------------------------------
-// Inline SVG icons
+// Icons
 // ---------------------------------------------------------------------------
 
 function ChevronLeftIcon({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
-    </svg>
-  );
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>;
 }
-
 function SpinnerIcon({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" />
-    </svg>
-  );
+  return <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>;
 }
-
 function SparklesIcon({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.684-2.051a1 1 0 0 1 .632-.632l2.051-.684a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.632-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.184a1 1 0 0 1 .633.632l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.632l.551-.184a1 1 0 0 0 0-1.898l-.551-.183a1 1 0 0 1-.632-.633l-.184-.551Z" />
-    </svg>
-  );
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.684-2.051a1 1 0 0 1 .632-.632l2.051-.684a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.632-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.184a1 1 0 0 1 .633.632l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.632l.551-.184a1 1 0 0 0 0-1.898l-.551-.183a1 1 0 0 1-.632-.633l-.184-.551Z" /></svg>;
 }
-
 function DownloadIcon({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
-      <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
-    </svg>
-  );
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" /><path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" /></svg>;
 }
-
 function ArrowRightIcon({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-      <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
-    </svg>
-  );
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" /></svg>;
 }
