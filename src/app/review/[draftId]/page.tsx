@@ -6,14 +6,126 @@ import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { loadDraft } from '@/lib/drafts/store';
+import { loadLlmConfig } from '@/lib/llm/types';
+import type { LlmConfig } from '@/lib/llm/types';
 import type { ReviewerReport } from '@/lib/reviewer/types';
+
+// ---------------------------------------------------------------------------
+// Mode toggle
+// ---------------------------------------------------------------------------
+
+type ReviewMode = 'heuristic' | 'ai';
+
+function ModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: ReviewMode;
+  onChange: (m: ReviewMode) => void;
+}) {
+  return (
+    <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden w-fit mb-6">
+      <button
+        type="button"
+        onClick={() => onChange('heuristic')}
+        className={`px-4 py-2 text-sm font-medium transition-colors ${
+          mode === 'heuristic'
+            ? 'bg-brand-600 text-white'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+        }`}
+      >
+        🔬 Heuristic
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('ai')}
+        className={`px-4 py-2 text-sm font-medium transition-colors border-l border-slate-200 dark:border-slate-700 ${
+          mode === 'ai'
+            ? 'bg-brand-600 text-white'
+            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+        }`}
+      >
+        ✨ AI Reviewer
+      </button>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Reviewer explanation panel
 // ---------------------------------------------------------------------------
 
-function ReviewerExplainer() {
+function ReviewerExplainer({ mode }: { mode: ReviewMode }) {
   const [open, setOpen] = useState(false);
+
+  const heuristicContent = (
+    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4 text-sm text-slate-600 dark:text-slate-400 animate-fade-in">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it is</p>
+          <p className="text-xs leading-relaxed">
+            A <strong className="text-slate-800 dark:text-slate-200">deterministic heuristic engine</strong> — not an AI model. It applies 22 weighted signal checks to your draft and maps the results to the official Horizon Europe scoring rubric.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Is it AI?</p>
+          <p className="text-xs leading-relaxed">
+            <strong className="text-slate-800 dark:text-slate-200">No.</strong> No language model is used. Every check is a deterministic pattern match — same draft always produces the same score. No API key needed.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it checks</p>
+          <p className="text-xs leading-relaxed">
+            <strong className="text-slate-800 dark:text-slate-200">22 signals</strong> across three HE criteria: <em>Excellence</em>, <em>Impact</em>, and <em>Implementation</em>. Each signal checks whether a specific required element is present and well-supported.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scoring</p>
+          <p className="text-xs leading-relaxed">
+            Each criterion is scored 0–5 in 0.5-point steps. Pass threshold: <strong className="text-slate-800 dark:text-slate-200">≥ 10.0 total</strong> and <strong className="text-slate-800 dark:text-slate-200">≥ 3.0 per criterion</strong>, matching the HE evaluation convention.
+          </p>
+        </div>
+      </div>
+      <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+        ⚠ <strong>Limitation:</strong> this tool checks structural completeness, not scientific quality or novelty. It cannot predict whether a real evaluation panel will fund your proposal.
+      </div>
+    </div>
+  );
+
+  const aiContent = (
+    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4 text-sm text-slate-600 dark:text-slate-400 animate-fade-in">
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it is</p>
+          <p className="text-xs leading-relaxed">
+            An <strong className="text-slate-800 dark:text-slate-200">AI-powered critique</strong> using your configured LLM (OpenAI, OpenRouter, or any compatible endpoint). The model acts as a simulated HE evaluation panel expert.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it needs</p>
+          <p className="text-xs leading-relaxed">
+            <strong className="text-slate-800 dark:text-slate-200">An API key.</strong> Set your LLM endpoint and key in <a href="/settings" className="underline font-medium text-brand-600 dark:text-brand-400">Settings</a>. The AI review uses your configured model and credits.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it produces</p>
+          <p className="text-xs leading-relaxed">
+            Criterion-by-criterion scores, <strong className="text-slate-800 dark:text-slate-200">strengths and weaknesses</strong>, specific recommendations, an overall pass/fail verdict, and a top-5 improvement list.
+          </p>
+        </div>
+        <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Reliability</p>
+          <p className="text-xs leading-relaxed">
+            AI scores <strong className="text-slate-800 dark:text-slate-200">may vary</strong> between runs. They reflect the model&apos;s interpretation, not an official HE panel verdict. Use as expert feedback, not a funding predictor.
+          </p>
+        </div>
+      </div>
+      <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+        ⚠ <strong>Important:</strong> AI outputs can be incorrect or biased. Cross-check with the heuristic reviewer and official HE guidance. This is a drafting aid, not an official assessment.
+      </div>
+    </div>
+  );
+
   return (
     <div className="card p-4 mb-6">
       <button
@@ -25,47 +137,13 @@ function ReviewerExplainer() {
         <div className="flex items-center gap-2">
           <InfoCircleIcon className="w-4 h-4 text-brand-500 shrink-0" />
           <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            How does the reviewer work?
+            How does the {mode === 'ai' ? 'AI reviewer' : 'heuristic reviewer'} work?
           </span>
         </div>
         <ChevronIcon className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-150 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4 text-sm text-slate-600 dark:text-slate-400 animate-fade-in">
-
-          <div className="grid sm:grid-cols-2 gap-3">
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it is</p>
-              <p className="text-xs leading-relaxed">
-                A <strong className="text-slate-800 dark:text-slate-200">deterministic heuristic engine</strong> — not an AI model. It applies 22 weighted signal checks to your draft text and maps the results to the official Horizon Europe scoring rubric.
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Is it AI?</p>
-              <p className="text-xs leading-relaxed">
-                <strong className="text-slate-800 dark:text-slate-200">No.</strong> No language model is used for scoring. Every check is a deterministic pattern match — same draft always produces the same score. No API key needed.
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">What it checks</p>
-              <p className="text-xs leading-relaxed">
-                <strong className="text-slate-800 dark:text-slate-200">22 signals</strong> across three Horizon Europe criteria: <em>Excellence</em>, <em>Impact</em>, and <em>Implementation</em>. Each signal checks whether a specific required element is present and well-supported.
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-3 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Scoring</p>
-              <p className="text-xs leading-relaxed">
-                Each criterion is scored 0–5 in 0.5-point steps. Pass threshold: <strong className="text-slate-800 dark:text-slate-200">≥ 10.0 total</strong> and <strong className="text-slate-800 dark:text-slate-200">≥ 3.0 per criterion</strong>, matching the HE evaluation convention.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 px-3 py-2.5 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-            ⚠ <strong>Limitation:</strong> this tool checks structural completeness, not scientific quality or novelty. It cannot predict whether a real evaluation panel will fund your proposal. Use it as a structural checklist, not a funding predictor.
-          </div>
-        </div>
-      )}
+      {open && (mode === 'ai' ? aiContent : heuristicContent)}
     </div>
   );
 }
@@ -78,7 +156,7 @@ function Skeleton({ className, style }: { className?: string; style?: React.CSSP
   return <div className={`skeleton rounded-xl ${className ?? ''}`} style={style} />;
 }
 
-function ScoringLoader() {
+function ScoringLoader({ label }: { label?: string }) {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="card p-6">
@@ -107,14 +185,14 @@ function ScoringLoader() {
         ))}
       </div>
       <p className="text-sm text-slate-500 dark:text-slate-400 text-center">
-        Analysing your proposal against Horizon Europe criteria…
+        {label ?? 'Analysing your proposal against Horizon Europe criteria…'}
       </p>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Score badge
+// Score badge (heuristic)
 // ---------------------------------------------------------------------------
 
 function ScoreBadge({ score, threshold, max }: { score: number; threshold: number; max: number }) {
@@ -131,7 +209,7 @@ function ScoreBadge({ score, threshold, max }: { score: number; threshold: numbe
 }
 
 // ---------------------------------------------------------------------------
-// Summary card
+// Summary card (heuristic)
 // ---------------------------------------------------------------------------
 
 function SummaryCard({ report }: { report: ReviewerReport }) {
@@ -172,36 +250,190 @@ function SummaryCard({ report }: { report: ReviewerReport }) {
 }
 
 // ---------------------------------------------------------------------------
+// AI review panel
+// ---------------------------------------------------------------------------
+
+type AiStatus = 'idle' | 'running' | 'done' | 'error';
+
+function AiReviewPanel({
+  draftId,
+  hasConfig,
+  llmConfig,
+}: {
+  draftId: string;
+  hasConfig: boolean;
+  llmConfig: LlmConfig | null;
+}) {
+  const [aiStatus, setAiStatus] = useState<AiStatus>('idle');
+  const [aiReview, setAiReview] = useState('');
+  const [aiModel, setAiModel] = useState('');
+  const [aiError, setAiError] = useState('');
+
+  async function handleRunAiReview() {
+    if (!llmConfig) return;
+    const draft = loadDraft(draftId);
+    if (!draft) return;
+
+    setAiStatus('running');
+    setAiError('');
+
+    try {
+      const res = await fetch('/api/review-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftContent: draft.content, config: llmConfig }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      setAiReview(data.aiReview as string);
+      setAiModel(data.model as string);
+      setAiStatus('done');
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Unknown error.');
+      setAiStatus('error');
+    }
+  }
+
+  // No API key configured
+  if (!hasConfig) {
+    return (
+      <div className="card p-8 text-center animate-fade-in">
+        <div className="w-12 h-12 rounded-full bg-brand-100 dark:bg-brand-950 flex items-center justify-center mx-auto mb-4">
+          <SparklesIcon className="w-6 h-6 text-brand-600 dark:text-brand-400" />
+        </div>
+        <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">API key required</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-sm mx-auto">
+          The AI reviewer uses your configured LLM to critique your proposal. Add your API key and endpoint in Settings to get started.
+        </p>
+        <a href="/settings" className="btn-primary inline-flex">
+          Go to Settings
+        </a>
+      </div>
+    );
+  }
+
+  // Idle — ready to run
+  if (aiStatus === 'idle') {
+    return (
+      <div className="card p-8 text-center animate-fade-in">
+        <div className="w-12 h-12 rounded-full bg-brand-100 dark:bg-brand-950 flex items-center justify-center mx-auto mb-4">
+          <SparklesIcon className="w-6 h-6 text-brand-600 dark:text-brand-400" />
+        </div>
+        <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">AI Reviewer ready</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-1 max-w-sm mx-auto">
+          Your proposal will be reviewed by <strong className="text-slate-700 dark:text-slate-300">{llmConfig?.model || 'your configured model'}</strong> acting as a Horizon Europe evaluator.
+        </p>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">
+          This uses your API credits. One call per review.
+        </p>
+        <button type="button" onClick={handleRunAiReview} className="btn-primary inline-flex">
+          <SparklesIcon className="w-4 h-4" />
+          Run AI Review
+        </button>
+      </div>
+    );
+  }
+
+  // Loading
+  if (aiStatus === 'running') {
+    return <ScoringLoader label="Calling AI reviewer — this may take 15–30 seconds…" />;
+  }
+
+  // Error
+  if (aiStatus === 'error') {
+    return (
+      <div className="card p-8 text-center animate-fade-in">
+        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center mx-auto mb-4">
+          <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
+        </div>
+        <p className="font-semibold text-slate-900 dark:text-slate-100 mb-2">AI review failed</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{aiError}</p>
+        <button type="button" onClick={handleRunAiReview} className="btn-primary">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  // Done — show AI review
+  return (
+    <div className="animate-fade-in">
+      <div className="rounded-xl px-4 py-3 text-xs mb-6 bg-brand-50 dark:bg-brand-950/40 border border-brand-200 dark:border-brand-800 text-brand-800 dark:text-brand-300 flex items-start gap-2">
+        <SparklesIcon className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <span>
+          <strong>AI-assisted assessment</strong> via <strong>{aiModel}</strong>. Scores are indicative and may differ from a real evaluation panel. Cross-check with the Heuristic reviewer for structural coverage.
+        </span>
+      </div>
+
+      <div className="card p-6 sm:p-8 prose-report">
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiReview}</ReactMarkdown>
+      </div>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={handleRunAiReview}
+          className="btn-ghost text-xs"
+        >
+          ↺ Re-run AI review
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
-type Status = 'loading' | 'scoring' | 'done' | 'error';
+type HeuristicStatus = 'loading' | 'scoring' | 'done' | 'error';
 
 export default function ReviewPage() {
   const params = useParams();
   const router = useRouter();
   const draftId = params.draftId as string;
 
-  const [status, setStatus] = useState<Status>('loading');
+  // Heuristic reviewer state
+  const [hStatus, setHStatus] = useState<HeuristicStatus>('loading');
   const [report, setReport] = useState<ReviewerReport | null>(null);
   const [draftTitle, setDraftTitle] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // Mode toggle
+  const [reviewMode, setReviewMode] = useState<ReviewMode>('heuristic');
+
+  // LLM config (for AI mode)
+  const [hasLlmConfig, setHasLlmConfig] = useState(false);
+  const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(null);
+
+  // Load LLM config on mount
+  useEffect(() => {
+    const cfg = loadLlmConfig();
+    if (cfg.endpoint && cfg.apiKey) {
+      setHasLlmConfig(true);
+      setLlmConfig(cfg);
+    }
+  }, []);
+
+  // Heuristic review — runs automatically on mount
   useEffect(() => {
     async function run() {
       const draft = loadDraft(draftId);
       if (!draft) {
         setErrorMsg('Draft not found. It may have been cleared from browser storage.');
-        setStatus('error');
+        setHStatus('error');
         return;
       }
       setDraftTitle(draft.title);
       if (draft.content.trim().length < 50) {
         setErrorMsg('Draft is too short to score (minimum 50 characters). Add more content and try again.');
-        setStatus('error');
+        setHStatus('error');
         return;
       }
-      setStatus('scoring');
+      setHStatus('scoring');
       try {
         const res = await fetch('/api/review', {
           method: 'POST',
@@ -214,10 +446,10 @@ export default function ReviewPage() {
         }
         const data = await res.json();
         setReport(data.report as ReviewerReport);
-        setStatus('done');
+        setHStatus('done');
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : 'Unknown error generating report.');
-        setStatus('error');
+        setHStatus('error');
       }
     }
     run();
@@ -233,6 +465,9 @@ export default function ReviewPage() {
     a.click();
     URL.revokeObjectURL(url);
   }
+
+  // Heuristic error (draft not found / too short) — shown regardless of mode
+  const heuristicFatalError = hStatus === 'error';
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -251,7 +486,7 @@ export default function ReviewPage() {
           {draftTitle && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{draftTitle}</p>}
         </div>
 
-        {status === 'done' && report && (
+        {hStatus === 'done' && report && reviewMode === 'heuristic' && (
           <button type="button" onClick={handleDownload} className="btn-secondary shrink-0">
             <DownloadIcon className="w-3.5 h-3.5" />
             Download report
@@ -259,14 +494,8 @@ export default function ReviewPage() {
         )}
       </div>
 
-      {/* Reviewer explainer — always visible so users understand what they're looking at */}
-      <ReviewerExplainer />
-
-      {/* Loading */}
-      {(status === 'loading' || status === 'scoring') && <ScoringLoader />}
-
-      {/* Error */}
-      {status === 'error' && (
+      {/* Fatal error (no draft / too short) */}
+      {heuristicFatalError && (
         <div className="card p-8 text-center">
           <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950 flex items-center justify-center mx-auto mb-4">
             <XCircleIcon className="w-6 h-6 text-red-600 dark:text-red-400" />
@@ -279,20 +508,46 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {/* Report */}
-      {status === 'done' && report && (
-        <div className="animate-fade-in">
-          <SummaryCard report={report} />
+      {/* Content (only shown when draft is valid) */}
+      {!heuristicFatalError && (
+        <>
+          {/* Mode toggle */}
+          <ModeToggle mode={reviewMode} onChange={setReviewMode} />
 
-          <div className="rounded-xl px-4 py-3 text-xs mb-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
-            ⚠ <strong>Heuristic assessment only.</strong> This report checks for the presence of structural content signals — it does not evaluate scientific quality and cannot predict funding panel outcomes. See{' '}
-            <a href="https://github.com/selinachegg/research-grant-craft/blob/main/docs/LIMITATIONS.md" target="_blank" rel="noopener noreferrer" className="underline font-medium">Limitations</a>.
-          </div>
+          {/* Reviewer explainer */}
+          <ReviewerExplainer mode={reviewMode} />
 
-          <div className="card p-6 sm:p-8 prose-report">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.markdownReport}</ReactMarkdown>
-          </div>
-        </div>
+          {/* ── Heuristic mode ── */}
+          {reviewMode === 'heuristic' && (
+            <>
+              {(hStatus === 'loading' || hStatus === 'scoring') && <ScoringLoader />}
+
+              {hStatus === 'done' && report && (
+                <div className="animate-fade-in">
+                  <SummaryCard report={report} />
+
+                  <div className="rounded-xl px-4 py-3 text-xs mb-6 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300">
+                    ⚠ <strong>Heuristic assessment only.</strong> This report checks for structural content signals — it does not evaluate scientific quality and cannot predict funding panel outcomes. See{' '}
+                    <a href="https://github.com/selinachegg/research-grant-craft-lab/blob/main/docs/LIMITATIONS.md" target="_blank" rel="noopener noreferrer" className="underline font-medium">Limitations</a>.
+                  </div>
+
+                  <div className="card p-6 sm:p-8 prose-report">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.markdownReport}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ── AI mode ── */}
+          {reviewMode === 'ai' && (
+            <AiReviewPanel
+              draftId={draftId}
+              hasConfig={hasLlmConfig}
+              llmConfig={llmConfig}
+            />
+          )}
+        </>
       )}
     </div>
   );
@@ -316,4 +571,7 @@ function XCircleIcon({ className }: { className: string }) {
 }
 function InfoCircleIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A1.75 1.75 0 0 0 9.253 9H9Z" clipRule="evenodd" /></svg>;
+}
+function SparklesIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M15.98 1.804a1 1 0 0 0-1.96 0l-.24 1.192a1 1 0 0 1-.784.785l-1.192.238a1 1 0 0 0 0 1.962l1.192.238a1 1 0 0 1 .785.785l.238 1.192a1 1 0 0 0 1.962 0l.238-1.192a1 1 0 0 1 .785-.785l1.192-.238a1 1 0 0 0 0-1.962l-1.192-.238a1 1 0 0 1-.785-.785l-.238-1.192ZM6.949 5.684a1 1 0 0 0-1.898 0l-.683 2.051a1 1 0 0 1-.633.633l-2.051.683a1 1 0 0 0 0 1.898l2.051.684a1 1 0 0 1 .633.632l.683 2.051a1 1 0 0 0 1.898 0l.683-2.051a1 1 0 0 1 .633-.633l2.051-.683a1 1 0 0 0 0-1.898l-2.051-.683a1 1 0 0 1-.633-.633L6.95 5.684ZM13.949 13.684a1 1 0 0 0-1.898 0l-.184.551a1 1 0 0 1-.632.633l-.551.183a1 1 0 0 0 0 1.898l.551.183a1 1 0 0 1 .633.633l.183.551a1 1 0 0 0 1.898 0l.184-.551a1 1 0 0 1 .632-.633l.551-.183a1 1 0 0 0 0-1.898l-.551-.184a1 1 0 0 1-.633-.632l-.183-.551Z" /></svg>;
 }
