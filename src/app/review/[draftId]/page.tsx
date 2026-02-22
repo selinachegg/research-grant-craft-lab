@@ -5,12 +5,67 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { loadDraft } from '@/lib/drafts/store';
+import { loadDraft, setDraftStatus } from '@/lib/drafts/store';
 import { loadLlmConfig } from '@/lib/llm/types';
 import type { LlmConfig } from '@/lib/llm/types';
 import type { ReviewerReport } from '@/lib/reviewer/types';
 import { exportAsPdf, exportAsPdfFromHtml } from '@/lib/export/pdf';
 import { exportAsLatex, downloadLatex } from '@/lib/export/latex';
+
+// ---------------------------------------------------------------------------
+// Mark-complete CTA (shown after heuristic review)
+// ---------------------------------------------------------------------------
+
+function MarkCompleteCard({
+  completed,
+  onToggle,
+  onBackToEditor,
+}: {
+  completed: boolean;
+  onToggle: () => void;
+  onBackToEditor: () => void;
+}) {
+  if (completed) {
+    return (
+      <div className="mt-8 rounded-2xl border-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 p-6 flex flex-col sm:flex-row items-center gap-4 animate-fade-in">
+        <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900 flex items-center justify-center shrink-0 text-2xl">
+          ✓
+        </div>
+        <div className="flex-1 text-center sm:text-left">
+          <p className="font-semibold text-emerald-800 dark:text-emerald-200 mb-1">Proposal marked as completed</p>
+          <p className="text-sm text-emerald-700 dark:text-emerald-400">
+            You can still edit or reopen it at any time from the home page.
+          </p>
+        </div>
+        <button type="button" onClick={onToggle} className="btn-secondary text-xs shrink-0">
+          ↺ Reopen
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-8 card p-6 flex flex-col sm:flex-row items-center gap-4 animate-fade-in">
+      <div className="w-12 h-12 rounded-full bg-brand-50 dark:bg-brand-950 flex items-center justify-center shrink-0">
+        <CheckCircleOutlineIcon className="w-6 h-6 text-brand-500" />
+      </div>
+      <div className="flex-1 text-center sm:text-left">
+        <p className="font-semibold text-slate-900 dark:text-slate-100 mb-1">Happy with the results?</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Mark this proposal as completed to move it to your Completed tab. You can always reopen and edit it later.
+        </p>
+      </div>
+      <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+        <button type="button" onClick={onBackToEditor} className="btn-secondary text-xs">
+          Back to editor
+        </button>
+        <button type="button" onClick={onToggle} className="btn-primary text-xs">
+          ✓ Mark as completed
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Export proposal section (PDF + LaTeX)
@@ -529,6 +584,7 @@ export default function ReviewPage() {
   const [draftTitle, setDraftTitle] = useState('');
   const [draftContent, setDraftContent] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [draftCompleted, setDraftCompleted] = useState(false);
 
   // Mode toggle
   const [reviewMode, setReviewMode] = useState<ReviewMode>('heuristic');
@@ -537,14 +593,22 @@ export default function ReviewPage() {
   const [hasLlmConfig, setHasLlmConfig] = useState(false);
   const [llmConfig, setLlmConfig] = useState<LlmConfig | null>(null);
 
-  // Load LLM config on mount
+  // Load LLM config and current draft status on mount
   useEffect(() => {
     const cfg = loadLlmConfig();
     if (cfg.endpoint && cfg.apiKey) {
       setHasLlmConfig(true);
       setLlmConfig(cfg);
     }
-  }, []);
+    const draft = loadDraft(draftId);
+    if (draft?.status === 'completed') setDraftCompleted(true);
+  }, [draftId]);
+
+  function handleMarkComplete() {
+    const next = draftCompleted ? 'in-progress' : 'completed';
+    setDraftStatus(draftId, next);
+    setDraftCompleted(!draftCompleted);
+  }
 
   // Heuristic review — runs automatically on mount
   useEffect(() => {
@@ -668,6 +732,13 @@ export default function ReviewPage() {
                   <div className="card p-6 sm:p-8 prose-report">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{report.markdownReport}</ReactMarkdown>
                   </div>
+
+                  {/* Mark complete CTA */}
+                  <MarkCompleteCard
+                    completed={draftCompleted}
+                    onToggle={handleMarkComplete}
+                    onBackToEditor={() => router.push(`/editor/${draftId}`)}
+                  />
                 </div>
               )}
             </>
@@ -691,6 +762,9 @@ export default function ReviewPage() {
 // Icons
 // ---------------------------------------------------------------------------
 
+function CheckCircleOutlineIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>;
+}
 function SpinnerSmIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4Z" /></svg>;
 }

@@ -5,7 +5,8 @@ import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { loadDraft, saveDraft } from '@/lib/drafts/store';
+import { loadDraft, saveDraft, setDraftStatus } from '@/lib/drafts/store';
+import type { DraftStatus } from '@/lib/drafts/store';
 import { loadWizardState } from '@/lib/wizard/store';
 import { loadLlmConfig, generateDraft } from '@/lib/llm';
 import { exportAsPdf, exportAsPdfFromHtml } from '@/lib/export/pdf';
@@ -132,9 +133,11 @@ export default function EditorPage() {
 
   const [view, setView] = useState<'split' | 'editor' | 'preview'>('split');
   const [generating, setGenerating] = useState(false);
+  const [improving, setImproving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
   const [mockBanner, setMockBanner] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<'pdf' | 'latex' | null>(null);
+  const [draftStatus, setDraftStatusState] = useState<DraftStatus | undefined>(undefined);
 
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -145,6 +148,7 @@ export default function EditorPage() {
       setContent(existing.content);
       setTitle(existing.title);
       setSchemeId(existing.schemeId);
+      setDraftStatusState(existing.status);
       if (existing.wizardId && !urlWizardId) setWizardId(existing.wizardId);
       return;
     }
@@ -274,6 +278,49 @@ export default function EditorPage() {
     if (!aiUsed) exportAsLatex(content, title);
   }
 
+  async function handleImprove() {
+    const cfg = loadLlmConfig();
+    if (!cfg.endpoint || !cfg.apiKey) {
+      alert('Please configure your AI model in Settings to use AI Polish.');
+      return;
+    }
+    if (content.trim().length < 100) {
+      alert('Write more content first — AI Polish needs at least 100 characters to work with.');
+      return;
+    }
+    const confirmed = window.confirm(
+      'AI Polish will improve your prose while keeping all your content and ideas.\n\nYour draft will be enhanced in place — nothing will be erased.\n\nContinue?',
+    );
+    if (!confirmed) return;
+
+    setImproving(true);
+    try {
+      const res = await fetch('/api/improve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftContent: content, config: cfg }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      const data = await res.json();
+      const improved = data.improvedContent as string;
+      setContent(improved);
+      scheduleSave(improved, title);
+    } catch (err) {
+      alert(`Polish failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setImproving(false);
+    }
+  }
+
+  function handleToggleComplete() {
+    const next: DraftStatus = draftStatus === 'completed' ? 'in-progress' : 'completed';
+    setDraftStatus(draftId, next);
+    setDraftStatusState(next);
+  }
+
   async function handleReview() {
     saveDraft({
       draftId,
@@ -354,6 +401,36 @@ export default function EditorPage() {
               ? <><SpinnerIcon className="w-3 h-3 animate-spin" /> Generating…</>
               : <><SparklesIcon className="w-3 h-3" /> Regenerate</>
             }
+          </button>
+        </Tooltip>
+
+        {/* AI Polish */}
+        <Tooltip content="Improve your prose using AI — keeps all your content and ideas, enhances writing quality and HE alignment. Requires API key.">
+          <button
+            type="button"
+            onClick={handleImprove}
+            disabled={improving || generating}
+            className="btn-secondary py-1 px-3 text-xs shrink-0 disabled:opacity-40"
+          >
+            {improving
+              ? <><SpinnerIcon className="w-3 h-3 animate-spin" /> Polishing…</>
+              : <><WandIcon className="w-3 h-3" /> <span className="hidden sm:inline">Polish</span></>
+            }
+          </button>
+        </Tooltip>
+
+        {/* Mark complete */}
+        <Tooltip content={draftStatus === 'completed' ? 'Reopen this proposal for editing' : 'Mark this proposal as finished and move it to Completed'}>
+          <button
+            type="button"
+            onClick={handleToggleComplete}
+            className={`py-1 px-3 text-xs rounded-xl border font-medium transition-colors shrink-0 ${
+              draftStatus === 'completed'
+                ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100'
+                : 'border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-emerald-300 hover:text-emerald-600'
+            }`}
+          >
+            {draftStatus === 'completed' ? '✓ Done' : '✓'}
           </button>
         </Tooltip>
 
@@ -460,6 +537,9 @@ export default function EditorPage() {
 
 function ChevronLeftIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" /></svg>;
+}
+function WandIcon({ className }: { className: string }) {
+  return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path d="M13.024 3.453a.75.75 0 0 1 .953 0l1.57 1.326a.75.75 0 0 1 0 1.149L14.6 7.23a.75.75 0 0 1-.953 0l-1.57-1.327a.75.75 0 0 1 0-1.148l1.948-1.302ZM5.5 2.75a.75.75 0 1 0-1.5 0v.5h-.5a.75.75 0 0 0 0 1.5h.5v.5a.75.75 0 0 0 1.5 0v-.5h.5a.75.75 0 0 0 0-1.5h-.5v-.5ZM9.75 9.75a.75.75 0 0 0-1.06 0l-5.5 5.5a.75.75 0 1 0 1.06 1.06l5.5-5.5a.75.75 0 0 0 0-1.06ZM12.5 7.25a.75.75 0 1 0-1.5 0v.5h-.5a.75.75 0 0 0 0 1.5h.5v.5a.75.75 0 0 0 1.5 0v-.5h.5a.75.75 0 0 0 0-1.5h-.5v-.5Z" /></svg>;
 }
 function ChevronDownIcon({ className }: { className: string }) {
   return <svg className={className} viewBox="0 0 20 20" fill="currentColor" aria-hidden><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" /></svg>;
